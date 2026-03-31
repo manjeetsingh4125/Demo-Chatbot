@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopBot Demo – AI Sales Assistant</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ============================================================
+       CSS VARIABLES – change these to rebrand for any client
+    ============================================================ */
+    :root {
+      --brand-primary:   #1a1a2e;   /* dark navy          */
+      --brand-accent:    #e94560;   /* vivid red-pink     */
+      --brand-accent2:   #0f3460;   /* mid-navy           */
+      --bot-bubble:      #f4f4f8;   /* light grey bubble  */
+      --user-bubble:     #1a1a2e;   /* dark bubble        */
+      --chat-bg:         #ffffff;
+      --shadow-lg: 0 24px 60px rgba(0,0,0,0.18);
+      --radius:          16px;
+      --radius-sm:       10px;
+      --font-main:       'DM Sans', sans-serif;
+      --font-display:    'Playfair Display', serif;
+
+      /* ── STORE CONFIG – edit these for each client ──────────── */
+      --store-name: "UrbanThread";
+    }
+
+    /* ---- Reset & base ---------------------------------------- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-main);
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       FAKE STORE BACKGROUND (makes the demo look realistic)
+    ============================================================ */
+    .store-bg {
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(135deg, #1a1a2e 0%, #0f3460 50%, #16213e 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: white;
+      user-select: none;
+    }
+
+    .store-bg .store-logo {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, #fff 30%, #e94560);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .store-bg .store-tagline {
+      font-size: 1rem;
+      opacity: 0.55;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      font-weight: 300;
+    }
+
+    .store-bg .demo-label {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(233,69,96,0.15);
+      border: 1px solid rgba(233,69,96,0.4);
+      color: #e94560;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 6px 18px;
+      border-radius: 100px;
+      backdrop-filter: blur(8px);
+    }
+
+    /* decorative circles */
+    .store-bg::before,
+    .store-bg::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      opacity: 0.06;
+      background: #e94560;
+    }
+    .store-bg::before { width: 600px; height: 600px; top: -200px; left: -200px; }
+    .store-bg::after  { width: 400px; height: 400px; bottom: -150px; right: -100px; }
+
+    /* ============================================================
+       CHAT LAUNCHER BUTTON (bottom-right corner)
+    ============================================================ */
+    #chat-launcher {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--brand-accent);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 32px rgba(233,69,96,0.45);
+      transition: transform 0.25s cubic-bezier(.34,1.56,.64,1),
+                  box-shadow 0.25s ease;
+      z-index: 9999;
+    }
+    #chat-launcher:hover {
+      transform: scale(1.1);
+      box-shadow: 0 12px 40px rgba(233,69,96,0.6);
+    }
+    #chat-launcher svg { transition: transform 0.3s ease; }
+    #chat-launcher.open svg.icon-chat { display: none; }
+    #chat-launcher.open svg.icon-close { display: block !important; }
+
+    /* notification badge */
+    .launcher-badge {
+      position: absolute;
+      top: 2px; right: 2px;
+      width: 16px; height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--brand-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse-badge 2s infinite;
+    }
+    @keyframes pulse-badge {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.2); }
+    }
+
+    /* ============================================================
+       CHAT WIDGET
+    ============================================================ */
+    #chat-widget {
+      position: fixed;
+      bottom: 100px;
+      right: 28px;
+      width: 370px;
+      max-height: 580px;
+      background: var(--chat-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 9998;
+      transform: scale(0.85) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transform-origin: bottom right;
+      transition: transform 0.35s cubic-bezier(.34,1.56,.64,1),
+                  opacity 0.25s ease;
+    }
+    #chat-widget.visible {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* ---- Header ---------------------------------------------- */
+    .chat-header {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent2));
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .chat-header-avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--brand-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .chat-header-avatar::after {
+      content: '';
+      position: absolute;
+      bottom: 2px; right: 2px;
+      width: 10px; height: 10px;
+      background: #22c55e;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+    .chat-header-info { flex: 1; }
+    .chat-header-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.2;
+    }
+    .chat-header-status {
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.6);
+      margin-top: 2px;
+    }
+    .chat-header-close {
+      background: rgba(255,255,255,0.12);
+      border: none;
+      color: #fff;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .chat-header-close:hover { background: rgba(255,255,255,0.25); }
+
+    /* ---- Messages area --------------------------------------- */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+    #chat-messages::-webkit-scrollbar { width: 4px; }
+    #chat-messages::-webkit-scrollbar-thumb {
+      background: #ddd;
+      border-radius: 4px;
+    }
+
+    /* ---- Bubbles --------------------------------------------- */
+    .msg-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      animation: fadeUp 0.3s ease both;
+    }
+    .msg-row.user { flex-direction: row-reverse; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--brand-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      color: white;
+    }
+    .msg-row.user .msg-avatar {
+      background: #e2e8f0;
+      color: #64748b;
+    }
+
+    .bubble {
+      max-width: 80%;
+      padding: 11px 15px;
+      border-radius: 18px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .bubble.bot {
+      background: var(--bot-bubble);
+      color: #1a1a2e;
+      border-bottom-left-radius: 4px;
+    }
+    .bubble.user {
+      background: var(--user-bubble);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    /* ---- Typing indicator ------------------------------------ */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 12px 15px;
+      background: var(--bot-bubble);
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      width: fit-content;
+    }
+    .typing-dot {
+      width: 7px; height: 7px;
+      background: #94a3b8;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%,60%,100% { transform: translateY(0); }
+      30%          { transform: translateY(-6px); }
+    }
+
+    /* ---- Product card inside chat ---------------------------- */
+    .product-card {
+      background: #fff;
+      border: 1.5px solid #e8eaf0;
+      border-radius: 12px;
+      overflow: hidden;
+      width: 100%;
+      max-width: 240px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .product-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .product-card-img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      background: linear-gradient(135deg, #f0f2f5, #e2e8f0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+    }
+    .product-card-body { padding: 10px 12px 12px; }
+    .product-card-name {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      line-height: 1.3;
+    }
+    .product-card-desc {
+      font-size: 0.73rem;
+      color: #64748b;
+      margin: 4px 0 8px;
+      line-height: 1.4;
+    }
+    .product-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .product-card-price {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--brand-accent);
+    }
+    .product-card-btn {
+      background: var(--brand-accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      font-family: var(--font-main);
+    }
+    .product-card-btn:hover {
+      background: #c73652;
+      transform: scale(1.05);
+    }
+    .product-card-btn:active { transform: scale(0.98); }
+
+    /* cart toast */
+    .cart-toast {
+      position: fixed;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1a1a2e;
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 10px 20px;
+      border-radius: 100px;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 99999;
+      white-space: nowrap;
+    }
+    .cart-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* products wrapper inside bubble */
+    .products-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    /* ---- Discount badge -------------------------------------- */
+    .discount-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, #fff3f5, #ffe4e8);
+      border: 1.5px dashed var(--brand-accent);
+      color: var(--brand-accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ---- Quick reply chips ----------------------------------- */
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      padding: 4px 0 2px;
+    }
+    .quick-reply-btn {
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      color: var(--brand-primary);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 6px 13px;
+      border-radius: 100px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, color 0.2s;
+      font-family: var(--font-main);
+      white-space: nowrap;
+    }
+    .quick-reply-btn:hover {
+      background: var(--brand-accent);
+      border-color: var(--brand-accent);
+      color: #fff;
+    }
+
+    /* ---- Input area ------------------------------------------ */
+    .chat-input-area {
+      padding: 12px 14px;
+      border-top: 1px solid #f0f2f5;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      flex-shrink: 0;
+    }
+    #chat-input {
+      flex: 1;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 100px;
+      padding: 10px 16px;
+      font-size: 0.875rem;
+      font-family: var(--font-main);
+      outline: none;
+      transition: border-color 0.2s;
+      color: #1a1a2e;
+    }
+    #chat-input:focus { border-color: var(--brand-accent); }
+    #chat-input::placeholder { color: #adb5bd; }
+    #send-btn {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--brand-accent);
+      border: none;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.15s;
+    }
+    #send-btn:hover { background: #c73652; transform: scale(1.08); }
+    #send-btn:active { transform: scale(0.95); }
+
+    /* ---- Powered-by footer ----------------------------------- */
+    .chat-powered {
+      text-align: center;
+      font-size: 0.65rem;
+      color: #cbd5e1;
+      padding: 5px 0 8px;
+      letter-spacing: 0.5px;
+    }
+    .chat-powered span { color: var(--brand-accent); font-weight: 600; }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 420px) {
+      #chat-widget { width: calc(100vw - 20px); right: 10px; bottom: 90px; }
+      #chat-launcher { bottom: 18px; right: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ============================================================
+     FAKE STORE BACKGROUND
+============================================================ -->
+<div class="store-bg" aria-hidden="true">
+  <div class="demo-label">🛍 Demo Store</div>
+  <div class="store-logo">UrbanThread</div>
+  <div class="store-tagline">Premium Streetwear &amp; Essentials</div>
+</div>
+
+<!-- ============================================================
+     CHAT LAUNCHER BUTTON
+============================================================ -->
+<button id="chat-launcher" aria-label="Open chat">
+  <span class="launcher-badge">1</span>
+
+  <!-- chat icon -->
+  <svg class="icon-chat" width="26" height="26" viewBox="0 0 24 24"
+       fill="none" stroke="#fff" stroke-width="2.2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+
+  <!-- close icon (hidden by default) -->
+  <svg class="icon-close" style="display:none" width="22" height="22"
+       viewBox="0 0 24 24" fill="none" stroke="#fff"
+       stroke-width="2.5" stroke-linecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/>
+    <line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+</button>
+
+<!-- ============================================================
+     CHAT WIDGET
+============================================================ -->
+<div id="chat-widget" role="dialog" aria-label="Shop Assistant">
+
+  <!-- Header -->
+  <div class="chat-header">
+    <div class="chat-header-avatar">🛍️</div>
+    <div class="chat-header-info">
+      <div class="chat-header-name">UrbanThread Assistant</div>
+      <div class="chat-header-status">● Online · Replies instantly</div>
+    </div>
+    <button class="chat-header-close" id="close-btn" aria-label="Close chat">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Messages -->
+  <div id="chat-messages"></div>
+
+  <!-- Input -->
+  <div class="chat-input-area">
+    <input id="chat-input" type="text"
+           placeholder="Ask me anything…" autocomplete="off"/>
+    <button id="send-btn" aria-label="Send">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke="#fff" stroke-width="2.5" stroke-linecap="round"
+           stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="chat-powered">Powered by <span>ShopBot AI</span></div>
+</div>
+
+<!-- Cart toast notification -->
+<div class="cart-toast" id="cart-toast">✅ Added to cart!</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+/* ================================================================
+   STORE CONFIG – Change these values for each client
+================================================================ */
+var STORE = {
+  name:      "UrbanThread",
+  assistant: "UrbanThread Assistant",
+  currency:  "$",
+  discount:  "SAVE10",         // discount code to promote
+  discountAmount: "10% off",
+
+  // ── PRODUCT CATALOG ──────────────────────────────────────────
+  // Add / remove products here. Emoji is used as the product image.
+  products: [
+    {
+      id: "p1",
+      keywords: ["shoe","shoes","sneaker","sneakers","kicks","footwear"],
+      emoji: "👟",
+      name: "Air Street Runner",
+      desc: "Lightweight, breathable mesh upper. All-day comfort.",
+      price: "$89.00",
+      badge: "Bestseller"
+    },
+    {
+      id: "p2",
+      keywords: ["shoe","shoes","boot","boots","high top"],
+      emoji: "🥾",
+      name: "Urban High-Top",
+      desc: "Premium leather high-top with cushioned insole.",
+      price: "$129.00",
+      badge: "New"
+    },
+    {
+      id: "p3",
+      keywords: ["shirt","shirts","t-shirt","tee","top","tshirt"],
+      emoji: "👕",
+      name: "Essential Drop Tee",
+      desc: "100% organic cotton, relaxed boxy fit.",
+      price: "$38.00",
+      badge: "Popular"
+    },
+    {
+      id: "p4",
+      keywords: ["shirt","shirts","hoodie","hoody","sweatshirt","pullover"],
+      emoji: "🧥",
+      name: "Heavyweight Hoodie",
+      desc: "400gsm fleece. Oversized fit, kangaroo pocket.",
+      price: "$74.00",
+      badge: "Staff Pick"
+    },
+    {
+      id: "p5",
+      keywords: ["pants","jeans","denim","trousers","bottoms"],
+      emoji: "👖",
+      name: "Raw Selvedge Denim",
+      desc: "Japanese raw denim. Slim tapered cut.",
+      price: "$148.00",
+      badge: "Limited"
+    },
+    {
+      id: "p6",
+      keywords: ["jacket","coat","outerwear","bomber","windbreaker"],
+      emoji: "🧣",
+      name: "Ripstop Bomber",
+      desc: "Water-resistant ripstop shell, ribbed cuffs.",
+      price: "$195.00",
+      badge: "New"
+    },
+    {
+      id: "p7",
+      keywords: ["cap","hat","beanie","headwear","bucket hat"],
+      emoji: "🧢",
+      name: "Logo 6-Panel Cap",
+      desc: "Unstructured, adjustable strapback. One size.",
+      price: "$32.00",
+      badge: "Trending"
+    },
+    {
+      id: "p8",
+      keywords: ["bag","backpack","tote","pack","carry"],
+      emoji: "🎒",
+      name: "Everyday Backpack",
+      desc: "15L capacity, laptop sleeve, water-resistant.",
+      price: "$86.00",
+      badge: "Popular"
+    }
+  ],
+
+  // ── FAQ RESPONSES ─────────────────────────────────────────────
+  faqs: {
+    shipping: `📦 <strong>Shipping Info</strong><br>
+      • Free standard shipping on orders over $75<br>
+      • Standard: 3–5 business days ($5.99)<br>
+      • Express: 1–2 business days ($14.99)<br>
+      • International: 7–14 days (rates vary)`,
+
+    returns: `🔄 <strong>Return Policy</strong><br>
+      • Free returns within <strong>30 days</strong> of delivery<br>
+      • Items must be unworn with original tags<br>
+      • Refunds processed within 3–5 business days<br>
+      • Start a return at: returns.urbanthread.com`,
+
+    payment: `💳 <strong>Payment Methods</strong><br>
+      • Visa, Mastercard, Amex, Discover<br>
+      • PayPal &amp; Apple Pay<br>
+      • Shop Pay (buy now, pay later)<br>
+      • Gift cards accepted`,
+
+    discount: '🏷️ Use code <strong>SAVE10</strong> at checkout for <strong>10% off</strong> your order!',
+
+    size: `📏 <strong>Size Guide</strong><br>
+      We have a detailed size guide on each product page.<br>
+      Need help? Tell me the item and I'll help you pick the right size!`,
+
+    track: `🔍 <strong>Order Tracking</strong><br>
+      Check your tracking link in your shipping confirmation email, or visit <strong>urbanthread.com/track</strong> with your order number.`
+  }
+};
+
+/* ================================================================
+   CHATBOT ENGINE
+================================================================ */
+document.addEventListener('DOMContentLoaded', function() {
+
+// -- DOM refs
+var widget    = document.getElementById('chat-widget');
+var launcher  = document.getElementById('chat-launcher');
+var closeBtn  = document.getElementById('close-btn');
+var messagesEl = document.getElementById('chat-messages');
+var inputEl   = document.getElementById('chat-input');
+var sendBtn   = document.getElementById('send-btn');
+var cartToast = document.getElementById('cart-toast');
+
+var isOpen = false;
+
+// ---- Toggle widget -------------------------------------------
+function toggleWidget() {
+  isOpen = !isOpen;
+  widget.classList.toggle('visible', isOpen);
+  launcher.classList.toggle('open', isOpen);
+  // hide the notification badge after first open
+  const badge = launcher.querySelector('.launcher-badge');
+  if (badge) badge.remove();
+  if (isOpen) inputEl.focus();
+}
+
+launcher.addEventListener('click', toggleWidget);
+closeBtn.addEventListener('click', toggleWidget);
+
+// ---- Helpers --------------------------------------------------
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function createRow(side) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${side}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = side === 'bot' ? '🛍' : '👤';
+  row.appendChild(avatar);
+  return row;
+}
+
+// Add a plain text / html bubble
+function addBubble(side, html, delay = 0) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const row    = createRow(side);
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${side}`;
+      bubble.innerHTML = html;
+      row.appendChild(bubble);
+      messagesEl.appendChild(row);
+      scrollToBottom();
+      resolve();
+    }, delay);
+  });
+}
+
+// Show typing dots then replace with content
+function botReply(contentFn, typingMs = 900) {
+  // Typing indicator
+  const typingRow = createRow('bot');
+  const typingBubble = document.createElement('div');
+  typingBubble.className = 'typing-indicator';
+  typingBubble.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  typingRow.appendChild(typingBubble);
+  messagesEl.appendChild(typingRow);
+  scrollToBottom();
+
+  return new Promise(resolve => {
+    setTimeout(() => {
+      typingRow.remove();
+      contentFn();
+      scrollToBottom();
+      resolve();
+    }, typingMs);
+  });
+}
+
+// Quick reply chips
+function addQuickReplies(options) {
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = '🛍';
+  const qr = document.createElement('div');
+  qr.className = 'quick-replies';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-reply-btn';
+    btn.textContent = opt;
+    btn.addEventListener('click', () => {
+      qr.querySelectorAll('.quick-reply-btn').forEach(b => b.disabled = true);
+      handleInput(opt);
+    });
+    qr.appendChild(btn);
+  });
+  row.appendChild(avatar);
+  row.appendChild(qr);
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+// Product card
+function buildProductCard(product) {
+  return `
+    <div class="product-card">
+      <div class="product-card-img">${product.emoji}</div>
+      <div class="product-card-body">
+        <div class="product-card-name">${product.name}</div>
+        <div class="product-card-desc">${product.desc}</div>
+        <div class="product-card-footer">
+          <span class="product-card-price">${STORE.currency}${product.price.replace(STORE.currency,'')}</span>
+          <button class="product-card-btn" onclick="addToCart('${product.name}')">Add to Cart</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+// Discount badge html
+function discountBadgeHtml() {
+  return `<div class="discount-badge">🏷️ Code: ${STORE.discount} · ${STORE.discountAmount}</div>`;
+}
+
+// Cart toast
+function addToCart(name) {
+  cartToast.textContent = `✅ "${name}" added to cart!`;
+  cartToast.classList.add('show');
+  setTimeout(() => cartToast.classList.remove('show'), 2800);
+}
+window.addToCart = addToCart; // expose for inline onclick
+
+/* ================================================================
+   RESPONSE LOGIC – keyword matching (no API key needed)
+================================================================ */
+function findProducts(text) {
+  const lower = text.toLowerCase();
+  return STORE.products.filter(p =>
+    p.keywords.some(kw => lower.includes(kw))
+  ).slice(0, 2); // max 2 recommendations
+}
+
+function classifyIntent(text) {
+  const t = text.toLowerCase();
+
+  if (/\b(ship|shipping|deliver|delivery|how long|how fast)\b/.test(t)) return 'shipping';
+  if (/\b(return|refund|exchange|take back|send back)\b/.test(t)) return 'returns';
+  if (/\b(pay|payment|card|paypal|apple pay|checkout|method)\b/.test(t)) return 'payment';
+  if (/\b(discount|coupon|code|promo|deal|offer|sale|off)\b/.test(t)) return 'discount';
+  if (/\b(size|sizing|fit|measurement|guide)\b/.test(t)) return 'size';
+  if (/\b(track|tracking|where.*order|order status)\b/.test(t)) return 'track';
+  if (/\b(hi|hello|hey|sup|yo|howdy|good morning|good afternoon)\b/.test(t)) return 'greet';
+  if (/\b(thank|thanks|cheers|appreciate|great|awesome|perfect)\b/.test(t)) return 'thanks';
+  if (/\b(bye|goodbye|see you|cya|later)\b/.test(t)) return 'bye';
+  if (/new.arri|new in|just in|latest|what.s new|whats new/.test(t)) return 'newarrivals';
+  if (/more product|browse|see more|all product|full range|catalog|collection/.test(t)) return 'browse';
+
+  // Product keywords
+  const prods = findProducts(t);
+  if (prods.length > 0) return { type: 'products', products: prods };
+
+  return 'unknown';
+}
+
+async function handleInput(text) {
+  if (!text.trim()) return;
+  // Show user bubble
+  const row = createRow('user');
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble user';
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  messagesEl.appendChild(row);
+  scrollToBottom();
+
+  const intent = classifyIntent(text);
+
+  await botReply(() => {
+    // --- Product recommendation
+    if (typeof intent === 'object' && intent.type === 'products') {
+      const row2 = createRow('bot');
+      const bubble2 = document.createElement('div');
+      bubble2.className = 'bubble bot';
+      bubble2.innerHTML = `Here are some great options I'd recommend 👇${discountBadgeHtml()}`;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'products-wrapper';
+      wrapper.style.marginTop = '10px';
+      intent.products.forEach(p => {
+        wrapper.innerHTML += buildProductCard(p);
+      });
+      bubble2.appendChild(wrapper);
+      row2.appendChild(bubble2);
+      messagesEl.appendChild(row2);
+      scrollToBottom();
+
+      setTimeout(() => {
+        addQuickReplies(['Shipping info', 'Return policy', 'See more products', 'Payment methods']);
+      }, 400);
+      return;
+    }
+
+    // --- Text responses
+    let reply = '';
+    switch(intent) {
+      case 'greet':
+        reply = `Hey! 👋 Welcome back to <strong>${STORE.name}</strong>!<br>What can I help you find today?`;
+        setTimeout(() => addQuickReplies(['Shoes', 'T-Shirts', 'Jackets', 'Bags']), 400);
+        break;
+      case 'shipping':
+        reply = STORE.faqs.shipping;
+        break;
+      case 'returns':
+        reply = STORE.faqs.returns;
+        break;
+      case 'payment':
+        reply = STORE.faqs.payment;
+        break;
+      case 'discount':
+        reply = '🏷️ Use code <strong>' + STORE.discount + '</strong> at checkout for <strong>' + STORE.discountAmount + '</strong> your order!';
+        break;
+      case 'size':
+        reply = STORE.faqs.size;
+        break;
+      case 'track':
+        reply = STORE.faqs.track;
+        break;
+      case 'thanks':
+        reply = `You're welcome! 😊 Is there anything else I can help you with?`;
+        setTimeout(() => addQuickReplies(['Browse products', 'Shipping info', 'Return policy']), 400);
+        break;
+      case 'bye':
+        reply = `Thanks for visiting <strong>${STORE.name}</strong>! 👋 Have a great day!`;
+        break;
+      case 'newarrivals':
+        reply = `Here's what just dropped at <strong>${STORE.name}</strong> 🔥`;
+        setTimeout(() => {
+          // Show the 2 newest products (marked "New" badge)
+          var newProds = STORE.products.filter(function(p){ return p.badge === 'New'; }).slice(0,2);
+          if (newProds.length === 0) newProds = STORE.products.slice(0,2);
+          var row2 = createRow('bot');
+          var bubble2 = document.createElement('div');
+          bubble2.className = 'bubble bot';
+          bubble2.innerHTML = discountBadgeHtml();
+          var wrapper = document.createElement('div');
+          wrapper.className = 'products-wrapper';
+          wrapper.style.marginTop = '10px';
+          newProds.forEach(function(p){ wrapper.innerHTML += buildProductCard(p); });
+          bubble2.appendChild(wrapper);
+          row2.appendChild(bubble2);
+          messagesEl.appendChild(row2);
+          scrollToBottom();
+          setTimeout(function(){ addQuickReplies(['Shipping info', 'Return policy', 'Discount code']); }, 400);
+        }, 900);
+        break;
+      case 'browse':
+        reply = `Here's a taste of what we carry 🛍️`;
+        setTimeout(() => {
+          // Show 2 popular products
+          var browseProds = STORE.products.filter(function(p){ return p.badge === 'Popular' || p.badge === 'Bestseller'; }).slice(0,2);
+          if (browseProds.length === 0) browseProds = STORE.products.slice(0,2);
+          var row2 = createRow('bot');
+          var bubble2 = document.createElement('div');
+          bubble2.className = 'bubble bot';
+          bubble2.innerHTML = discountBadgeHtml();
+          var wrapper = document.createElement('div');
+          wrapper.className = 'products-wrapper';
+          wrapper.style.marginTop = '10px';
+          browseProds.forEach(function(p){ wrapper.innerHTML += buildProductCard(p); });
+          bubble2.appendChild(wrapper);
+          row2.appendChild(bubble2);
+          messagesEl.appendChild(row2);
+          scrollToBottom();
+          setTimeout(function(){ addQuickReplies(['Shoes 👟', 'Jackets 🧥', 'Bags 🎒', 'Shipping info']); }, 400);
+        }, 900);
+        break;
+      default:
+        reply = `Hmm, I'm not sure about that — but I can help with:<br><br>
+          🛍 <strong>Product recommendations</strong><br>
+          📦 <strong>Shipping &amp; delivery</strong><br>
+          🔄 <strong>Returns &amp; refunds</strong><br>
+          💳 <strong>Payment methods</strong><br>
+          🏷️ <strong>Discounts &amp; promo codes</strong><br><br>
+          What can I help you with?`;
+        setTimeout(() => addQuickReplies(['Show me shoes', 'Shipping info', 'Return policy', 'Discount code']), 400);
+    }
+
+    if (reply) {
+      const row2 = createRow('bot');
+      const bubble2 = document.createElement('div');
+      bubble2.className = 'bubble bot';
+      bubble2.innerHTML = reply;
+      row2.appendChild(bubble2);
+      messagesEl.appendChild(row2);
+    }
+    scrollToBottom();
+  }, 750 + Math.random() * 400);
+}
+
+// ---- Send on button / enter ----------------------------------
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  inputEl.value = '';
+  handleInput(text);
+}
+
+sendBtn.addEventListener('click', sendMessage);
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+/* ================================================================
+   WELCOME MESSAGE (on first open)
+================================================================ */
+var welcomed = false;
+launcher.addEventListener('click', async () => {
+  if (!welcomed && isOpen) {
+    welcomed = true;
+    await botReply(() => {
+      const row = createRow('bot');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble bot';
+      bubble.innerHTML = `Hi 👋 Looking for something? I can help you find the perfect product from <strong>${STORE.name}</strong>!`;
+      row.appendChild(bubble);
+      messagesEl.appendChild(row);
+      scrollToBottom();
+    }, 600);
+    setTimeout(() => {
+      addQuickReplies(['Show me shoes 👟', 'T-Shirts 👕', 'New arrivals ✨', 'Discount codes 🏷️']);
+    }, 300);
+  }
+});
+
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
