@@ -465,6 +465,44 @@
       border-color: var(--brand-accent);
       color: #fff;
     }
+    .quick-reply-btn.used {
+      background: var(--brand-accent);
+      border-color: var(--brand-accent);
+      color: #fff;
+      opacity: 0.7;
+    }
+
+    /* ---- Input hint bar -------------------------------------- */
+    .chat-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px 0;
+      flex-wrap: wrap;
+    }
+    .chat-hint-label {
+      font-size: 0.68rem;
+      color: #94a3b8;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .chat-hint-chip {
+      font-size: 0.68rem;
+      color: var(--brand-accent);
+      background: #fff3f5;
+      border: 1px solid #ffd6dd;
+      border-radius: 100px;
+      padding: 3px 9px;
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+    .chat-hint-chip:hover {
+      background: var(--brand-accent);
+      color: #fff;
+    }
 
     /* ---- Input area ------------------------------------------ */
     .chat-input-area {
@@ -580,6 +618,15 @@
 
   <!-- Messages -->
   <div id="chat-messages"></div>
+
+  <!-- Hint bar -->
+  <div class="chat-hint">
+    <span class="chat-hint-label">Try:</span>
+    <button class="chat-hint-chip" onclick="hintSend('Show me shoes')">👟 Shoes</button>
+    <button class="chat-hint-chip" onclick="hintSend('Shipping info')">📦 Shipping</button>
+    <button class="chat-hint-chip" onclick="hintSend('Discount codes')">🏷️ Discount</button>
+    <button class="chat-hint-chip" onclick="hintSend('Return policy')">🔄 Returns</button>
+  </div>
 
   <!-- Input -->
   <div class="chat-input-area">
@@ -819,7 +866,9 @@ function addQuickReplies(options) {
     btn.className = 'quick-reply-btn';
     btn.textContent = opt;
     btn.addEventListener('click', () => {
-      qr.querySelectorAll('.quick-reply-btn').forEach(b => b.disabled = true);
+      // Mark this chip as "used" visually but keep ALL chips clickable
+      qr.querySelectorAll('.quick-reply-btn').forEach(b => b.classList.remove('used'));
+      btn.classList.add('used');
       handleInput(opt);
     });
     qr.appendChild(btn);
@@ -859,33 +908,52 @@ function addToCart(name) {
 }
 window.addToCart = addToCart; // expose for inline onclick
 
+// Hint bar shortcut
+function hintSend(text) {
+  inputEl.value = '';
+  handleInput(text);
+}
+window.hintSend = hintSend;
+
 /* ================================================================
    RESPONSE LOGIC – keyword matching (no API key needed)
 ================================================================ */
 function findProducts(text) {
-  const lower = text.toLowerCase();
-  return STORE.products.filter(p =>
-    p.keywords.some(kw => lower.includes(kw))
-  ).slice(0, 2); // max 2 recommendations
+  var lower = text.toLowerCase();
+  return STORE.products.filter(function(p) {
+    return p.keywords.some(function(kw) {
+      // whole-word match to avoid "store" matching "top" etc.
+      var re = new RegExp('\\b' + kw + '\\b', 'i');
+      return re.test(lower);
+    });
+  }).slice(0, 2);
 }
 
 function classifyIntent(text) {
-  const t = text.toLowerCase();
+  var t = text.toLowerCase();
 
+  // ── FAQ & meta intents (checked BEFORE product keywords) ──────
   if (/\b(ship|shipping|deliver|delivery|how long|how fast)\b/.test(t)) return 'shipping';
   if (/\b(return|refund|exchange|take back|send back)\b/.test(t)) return 'returns';
   if (/\b(pay|payment|card|paypal|apple pay|checkout|method)\b/.test(t)) return 'payment';
   if (/\b(discount|coupon|code|promo|deal|offer|sale|off)\b/.test(t)) return 'discount';
   if (/\b(size|sizing|fit|measurement|guide)\b/.test(t)) return 'size';
-  if (/\b(track|tracking|where.*order|order status)\b/.test(t)) return 'track';
+  if (/\b(track|tracking|order status)\b/.test(t)) return 'track';
   if (/\b(hi|hello|hey|sup|yo|howdy|good morning|good afternoon)\b/.test(t)) return 'greet';
   if (/\b(thank|thanks|cheers|appreciate|great|awesome|perfect)\b/.test(t)) return 'thanks';
   if (/\b(bye|goodbye|see you|cya|later)\b/.test(t)) return 'bye';
   if (/new.arri|new in|just in|latest|what.s new|whats new/.test(t)) return 'newarrivals';
   if (/more product|browse|see more|all product|full range|catalog|collection/.test(t)) return 'browse';
 
-  // Product keywords
-  const prods = findProducts(t);
+  // ── Store / brand questions ────────────────────────────────────
+  if (/\b(who are you|what is this|your name|store name|shop name|brand name|what store|which store|about you|about this)\b/.test(t)) return 'about';
+  if (/\b(help|what can you do|how does this work|what do you do|options|menu)\b/.test(t)) return 'help';
+  if (/\b(human|agent|person|real person|talk to someone|speak to someone|support)\b/.test(t)) return 'human';
+  if (/\b(open|hours|opening|store hours|when are you)\b/.test(t)) return 'hours';
+  if (/\b(contact|email|phone|reach you|get in touch)\b/.test(t)) return 'contact';
+
+  // ── Product keywords (whole-word matched) ─────────────────────
+  var prods = findProducts(t);
   if (prods.length > 0) return { type: 'products', products: prods };
 
   return 'unknown';
@@ -959,6 +1027,32 @@ async function handleInput(text) {
         break;
       case 'bye':
         reply = `Thanks for visiting <strong>${STORE.name}</strong>! 👋 Have a great day!`;
+        break;
+      case 'about':
+        reply = `I'm the AI shopping assistant for <strong>${STORE.name}</strong> — a premium streetwear &amp; essentials brand. 🛍️<br><br>I'm here to help you find the perfect product, answer questions, and make your shopping experience seamless!`;
+        setTimeout(() => addQuickReplies(['Show me products', 'New arrivals ✨', 'Discount codes 🏷️']), 400);
+        break;
+      case 'help':
+        reply = `Here's everything I can help you with:<br><br>
+          🛍 <strong>Find products</strong> — just tell me what you're looking for<br>
+          ✨ <strong>New arrivals</strong> — see what just dropped<br>
+          📦 <strong>Shipping info</strong> — costs &amp; delivery times<br>
+          🔄 <strong>Returns</strong> — our 30-day return policy<br>
+          💳 <strong>Payment methods</strong> — cards, PayPal &amp; more<br>
+          🏷️ <strong>Discount codes</strong> — save on your order`;
+        setTimeout(() => addQuickReplies(['Show me shoes 👟', 'New arrivals ✨', 'Shipping info', 'Discount codes 🏷️']), 400);
+        break;
+      case 'human':
+        reply = `I'm an AI assistant, but our support team is always happy to help! 😊<br><br>📧 <strong>Email:</strong> support@urbanthread.com<br>⏰ <strong>Response time:</strong> within 24 hours`;
+        break;
+      case 'hours':
+        reply = `🕐 <strong>Store Hours</strong><br><br>Our online store is open <strong>24/7</strong>!<br>Customer support is available Mon–Fri, 9am–6pm.`;
+        break;
+      case 'contact':
+        reply = `📬 <strong>Contact Us</strong><br><br>
+          📧 Email: support@urbanthread.com<br>
+          📱 Instagram: @urbanthread<br>
+          ⏰ Support hours: Mon–Fri, 9am–6pm`;
         break;
       case 'newarrivals':
         reply = `Here's what just dropped at <strong>${STORE.name}</strong> 🔥`;
